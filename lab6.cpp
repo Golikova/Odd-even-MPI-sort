@@ -4,128 +4,111 @@
 #include <mpi.h>
 #include <stdlib.h>
 #include <algorithm> 
+
+#define ROOT 0
+
 using namespace std;
+
+MPI_Status status;
 
 void printData(int* data, int n){
 	for(int i=0;i<n;i++){
-         	printf("%d ",data[i] );
+         	cout << data[i] << " ";
     }
+    cout << endl;
 }
 
 int main(int argc, char *argv[]){
 
 	int size,rank;
-	int n,elementsPerProcess;
-	int *data,recdata[2],recdata2[2];
-	int *temp;
-	int root_process;
-	MPI_Status status;
+	int elementsPerProcess = 1;
+	int *data,currentElement[2],nieghbourElement[2];
 	
 	MPI_Init(&argc, &argv);
-    root_process = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-      if(rank == root_process) {
-         printf("please enter the number of numbers to sort: ");
-         fflush(stdout);
-         scanf("%i", &n);
-
-         elementsPerProcess=n / size;
-         data = new int[n];
-
-         for(int i = 0; i < n; i++) {
-            data[i] = rand()%20;
+    if(rank == ROOT) {
+         cout << "Будет создан массив из " << size << " случайных чисел " << endl;
+         data = new int[size];
+         for(int i = 0; i < size; i++) {
+            data[i] = rand()%26;
          }
-         printf("array data is:");
-         for(int i=0;i<n;i++){
-         	printf("%d ",data[i] );
-         }
-         printf("\n");
+         cout << "Массив для сортировки: ";
+         printData(data, size);
     }
 
     MPI_Bcast(&elementsPerProcess,1,MPI_INT,0,MPI_COMM_WORLD);
-    MPI_Scatter(data, elementsPerProcess, MPI_INT, &recdata, elementsPerProcess, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(data, elementsPerProcess, MPI_INT, &currentElement, elementsPerProcess, MPI_INT, 0, MPI_COMM_WORLD);
 
-    printf("%d:received data:",rank);
-         for(int i=0;i<elementsPerProcess;i++){
-         	printf("%d ",recdata[i] );
-         }
-    printf("\n");
+    cout << "Процесс №" << rank << " получил элемент: " ;
+    printData(currentElement, elementsPerProcess);
 
-    //begin the odd-even sort
-    int oddrank,evenrank;
+    int oddNieghbour,evenNieghbour;
 
     if(rank%2==0){
-    	oddrank=rank-1; 
-    	evenrank = rank+1;
+    	oddNieghbour=rank-1; 
+    	evenNieghbour = rank+1;
 	}
  	else {
- 		oddrank = rank+1;
- 		evenrank = rank-1;
+ 		oddNieghbour = rank+1;
+ 		evenNieghbour = rank-1;
 	}
 
-/* Set the ranks of the processors at the end of the linear */
-if (oddrank == -1 || oddrank == size)
- oddrank = MPI_PROC_NULL;
-if (evenrank == -1 || evenrank == size)
- evenrank = MPI_PROC_NULL;
+	if (oddNieghbour == -1 || oddNieghbour == size)
+	 oddNieghbour = MPI_PROC_NULL;
+	if (evenNieghbour == -1 || evenNieghbour == size)
+	 evenNieghbour = MPI_PROC_NULL;
 
 
-for (int index=0; index<size-1; index++) {
+	for (int index=0; index<size-1; index++) {
 
+	 if (index%2 == 1) /* Odd phase */
+	 MPI_Sendrecv(currentElement, elementsPerProcess, MPI_INT, oddNieghbour, 1, nieghbourElement,
+	 elementsPerProcess, MPI_INT, oddNieghbour, 1, MPI_COMM_WORLD, &status);
+	 else /* Even phase */
+	 MPI_Sendrecv(currentElement, elementsPerProcess, MPI_INT, evenNieghbour, 1, nieghbourElement,
+	 elementsPerProcess, MPI_INT, evenNieghbour, 1, MPI_COMM_WORLD, &status);
 
- if (index%2 == 1) /* Odd phase */
- MPI_Sendrecv(recdata, elementsPerProcess, MPI_INT, oddrank, 1, recdata2,
- elementsPerProcess, MPI_INT, oddrank, 1, MPI_COMM_WORLD, &status);
- else /* Even phase */
- MPI_Sendrecv(recdata, elementsPerProcess, MPI_INT, evenrank, 1, recdata2,
- elementsPerProcess, MPI_INT, evenrank, 1, MPI_COMM_WORLD, &status);
+	 if(status.MPI_SOURCE==MPI_PROC_NULL) continue;
 
- //extract elementsPerProcess after sorting the two
- temp= new int[elementsPerProcess];
+	 int *temp;
+	 temp= new int[elementsPerProcess];
 
- for(int i=0;i<elementsPerProcess;i++){
- 	temp[i]=recdata[i];
- }
+	 for(int i=0;i<elementsPerProcess;i++){
+	 	temp[i]=currentElement[i];
+	 }
 
- if(status.MPI_SOURCE==MPI_PROC_NULL)	continue;
+	 if(rank<status.MPI_SOURCE){
+	 	for(int i=0;i<elementsPerProcess;i++){
+	 		if(temp[i]<nieghbourElement[i]) {
+	 			currentElement[i]=temp[i];
+	 		}
+	 		else {
+	 			currentElement[i]=nieghbourElement[i];
+	 		}
+	 	}
+	 }
 
- else if(rank<status.MPI_SOURCE){
- 	//store the smaller of the two
- 	int i,j,k;
- 	for(i=j=k=0;k<elementsPerProcess;k++){
- 		if(temp[i]<recdata2[j]) {
- 			recdata[k]=temp[i++];
- 		}
- 		else {
- 			recdata[k]=recdata2[j++];
- 		}
- 	}
- }
+	 else{
+	 	for(int i=elementsPerProcess-1;i>=0;i--){
+	 		if(temp[i]>=nieghbourElement[i]) {
+	 			currentElement[i]=temp[i];
+	 		}
+	 		else {
+	 			currentElement[i]=nieghbourElement[i];
+	 		}
+	 	}
+	 }//else
+	 }//for
 
- else{
- 	//store the larger of the two
- 	int i,j,k;
- 	for(i=j=k=elementsPerProcess-1;k>=0;k--){
- 		if(temp[i]>=recdata2[j]) {
- 			recdata[k]=temp[i--];
- 		}
- 		else {
- 			recdata[k]=recdata2[j--];
- 		}
- 	}
- }//else
- }//for
+	MPI_Gather(currentElement,elementsPerProcess,MPI_INT,data,elementsPerProcess,MPI_INT,0,MPI_COMM_WORLD);
 
-MPI_Gather(recdata,elementsPerProcess,MPI_INT,data,elementsPerProcess,MPI_INT,0,MPI_COMM_WORLD);
+	if(rank==ROOT){
+	cout << "Результат сортировки: ";
+	printData(data, size);
+	}
 
-if(rank==root_process){
-printf("final sorted data:");
-printData(data, size);
-    printf("\n");
-}
-
-MPI_Finalize();
+	MPI_Finalize();
 
 }
