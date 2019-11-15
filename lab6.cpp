@@ -5,10 +5,6 @@
 #include <stdlib.h>
 #include <algorithm> 
 using namespace std;
-int compare (const void * a, const void * b)
-{
-  return ( *(int*)a > *(int*)b );
-}
 
 int main(int argc, char *argv[]){
 
@@ -30,8 +26,8 @@ int main(int argc, char *argv[]){
          printf("please enter the number of numbers to sort: ");
          fflush(stdout);
          scanf("%i", &n);
-         int avgn = n / size;
-         elementsPerProcess=avgn;
+
+         elementsPerProcess=n / size;
          data = new int[n];
 
          for(i = 0; i < n; i++) {
@@ -43,19 +39,15 @@ int main(int argc, char *argv[]){
          }
          printf("\n");
     }
-    else{
-    	data=NULL;
-    }
 
     MPI_Bcast(&elementsPerProcess,1,MPI_INT,0,MPI_COMM_WORLD);
-    MPI_Scatter(data, elementsPerProcess, MPI_INT, &recdata, 100, MPI_INT, 0, MPI_COMM_WORLD);
-    
+    MPI_Scatter(data, elementsPerProcess, MPI_INT, &recdata, elementsPerProcess, MPI_INT, 0, MPI_COMM_WORLD);
+
     printf("%d:received data:",rank);
          for(i=0;i<elementsPerProcess;i++){
          	printf("%d ",recdata[i] );
          }
     printf("\n");
-    sort(recdata,recdata+elementsPerProcess);
 
     //begin the odd-even sort
     int oddrank,evenrank;
@@ -84,7 +76,8 @@ for (p=0; p<size-1; p++) {
  elementsPerProcess, MPI_INT, evenrank, 1, MPI_COMM_WORLD, &status);
 
  //extract elementsPerProcess after sorting the two
- temp=(int*)malloc(elementsPerProcess*sizeof(int));
+ temp= new int[elementsPerProcess];
+
  for(i=0;i<elementsPerProcess;i++){
  	temp[i]=recdata[i];
  }
