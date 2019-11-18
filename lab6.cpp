@@ -21,21 +21,25 @@ void printData(int* data, int n){
 int main(int argc, char *argv[]){
 
 	int size,rank;
-	int elementsPerProcess = 1;
-	int *data,currentElement[2],nieghbourElement[2];
+	int n;
+	int elementsPerProcess;
+	int *data,currentElement[100],nieghbourElement[100];
 	
 	MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if(rank == ROOT) {
-         cout << "Будет создан массив из " << size << " случайных чисел " << endl;
-         data = new int[size];
-         for(int i = 0; i < size; i++) {
-            data[i] = rand()%26;
+    	 cout << "Введите размер массива: ";
+    	 cin >> n;
+         cout << endl;
+         elementsPerProcess = n/size;
+         data = new int[n];
+         for(int i = 0; i < n; i++) {
+            data[i] = rand()%100;
          }
          cout << "Массив для сортировки: ";
-         printData(data, size);
+         printData(data, n);
     }
 
     MPI_Bcast(&elementsPerProcess,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -43,6 +47,8 @@ int main(int argc, char *argv[]){
 
     cout << "Процесс №" << rank << " получил элемент: " ;
     printData(currentElement, elementsPerProcess);
+
+    sort(currentElement,currentElement+elementsPerProcess);
 
     int oddNieghbour,evenNieghbour;
 
@@ -79,34 +85,37 @@ int main(int argc, char *argv[]){
 	 	temp[i]=currentElement[i];
 	 }
 
-	 if(rank<status.MPI_SOURCE){
-	 	for(int i=0;i<elementsPerProcess;i++){
-	 		if(temp[i]<nieghbourElement[i]) {
-	 			currentElement[i]=temp[i];
-	 		}
-	 		else {
-	 			currentElement[i]=nieghbourElement[i];
-	 		}
+	if(rank<status.MPI_SOURCE){
+	 	//берем меньший
+	 	int i,j,k;
+	 	for(i=j=k=0;k<elementsPerProcess;k++){
+	 		if(temp[i]<nieghbourElement[j])
+	 			currentElement[k]=temp[i++];
+	 		else
+	 			currentElement[k]=nieghbourElement[j++];
 	 	}
 	 }
-
 	 else{
-	 	for(int i=elementsPerProcess-1;i>=0;i--){
-	 		if(temp[i]>=nieghbourElement[i]) {
-	 			currentElement[i]=temp[i];
-	 		}
-	 		else {
-	 			currentElement[i]=nieghbourElement[i];
-	 		}
+	 	//берем больший
+	 	int i,j,k;
+	 	for(i=j=k=elementsPerProcess-1;k>=0;k--){
+	 		if(temp[i]>=nieghbourElement[j])
+	 			currentElement[k]=temp[i--];
+	 		else
+	 			currentElement[k]=nieghbourElement[j--];
 	 	}
 	 }//else
+
+	 cout << "Процесс №" << rank << " обновил свои данные : " ;
+	 printData(currentElement, elementsPerProcess);
+
 	 }//for
 
 	MPI_Gather(currentElement,elementsPerProcess,MPI_INT,data,elementsPerProcess,MPI_INT,0,MPI_COMM_WORLD);
 
 	if(rank==ROOT){
 	cout << "Результат сортировки: ";
-	printData(data, size);
+	printData(data, n);
 	}
 
 	MPI_Finalize();
